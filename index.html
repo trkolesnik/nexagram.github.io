@@ -193,7 +193,7 @@
         #mediaModal { z-index: 3000; padding: 0; background: rgba(0,0,0,0.95); }
         .media-close-btn { position: absolute; top: env(safe-area-inset-top, 20px); right: 20px; color: white; z-index: 3001; font-size: 24px; padding: 10px; }
 
-        /* ИНТЕРФЕЙС ИСТОРИЙ (НОВЫЙ) */
+        /* ИНТЕРФЕЙС ИСТОРИЙ */
         #storyViewer { position: fixed; inset: 0; background: #000; z-index: 4000; display: none; flex-direction: column; }
         .story-bars { display: flex; gap: 4px; padding: 10px; padding-top: calc(10px + env(safe-area-inset-top)); position: absolute; top: 0; left: 0; width: 100%; z-index: 4001; }
         .story-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden; }
@@ -222,7 +222,7 @@
         .story-action-btn { color: white; font-size: 22px; transition: transform 0.2s; }
         .story-action-btn:active { transform: scale(0.8); }
 
-        /* ЭКРАН ЗВОНКА И ВИДЕОСВЯЗИ (ПОЛНОСТЬЮ НОВЫЙ ДИЗАЙН) */
+        /* ЭКРАН ЗВОНКА И ВИДЕОСВЯЗИ */
         #callOverlay { z-index: 9000; flex-direction: column; position: fixed; inset: 0; transition: background 0.3s ease; }
         
         @keyframes iridescentGradient { 0% { background-position: 0% 0%; } 50% { background-position: 100% 100%; } 100% { background-position: 0% 0%; } }
@@ -516,21 +516,18 @@
 
 <!-- НОВЫЙ ИНТЕРФЕЙС ЗВОНКОВ -->
 <div id="callOverlay" class="modal audio-call">
-    <!-- Видео слои -->
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay playsinline muted></video>
 
-    <!-- Верхняя панель (Свернуть / Имя для видео) -->
     <div class="call-top-bar">
         <button class="icon-btn" style="color: white; font-size: 28px; width:40px;" onclick="minimizeCall()">↙</button>
         <div class="call-top-center" id="callTopCenter">
             <div id="callNameSmall" style="font-weight: 600; font-size: 18px;">Евгений</div>
             <div id="callStatusSmall" style="font-size: 14px; opacity: 0.8; margin-top:2px;">Ожидание...</div>
         </div>
-        <div style="width:40px;"></div> <!-- Placeholder для центровки -->
+        <div style="width:40px;"></div> 
     </div>
 
-    <!-- Центр (Для аудиозвонка) -->
     <div class="call-center-area" id="callCenterArea">
         <div class="call-avatar-container">
             <div class="call-avatar-ring-2"></div>
@@ -541,9 +538,10 @@
         <div id="callStatus" style="font-size: 16px; opacity: 0.8;">Запрос . .</div>
     </div>
 
-    <!-- Кнопки управления (рендерятся динамически) -->
     <div class="call-actions-row" id="callControls"></div>
 </div>
+
+<!-- Выделенный аудиоплеер для голоса собеседника -->
 <audio id="remoteAudio" autoplay playsinline></audio>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -616,7 +614,7 @@
     let isCallCamOff = false;
     let isSpeakerOn = true;
     let currentCallIsVideo = false;
-    let currentFacingMode = 'user'; // Для смены камеры
+    let currentFacingMode = 'user';
 
     const rtcConfig = { 
         iceServers: [
@@ -668,6 +666,16 @@
                             activeChat = freshChat;
                             markChatAsReadLocally();
                             renderMsgs(); 
+                            
+                            // Обновляем статус онлайн в открытом чате в реальном времени
+                            if (activeChat.type === 'direct' && activeChat.u1 !== activeChat.u2) {
+                                const otherId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
+                                const other = db.users.find(u => u.id === otherId);
+                                if (other) {
+                                    const hStatus = document.getElementById('h-status');
+                                    if (hStatus) hStatus.textContent = getUserStatus(other);
+                                }
+                            }
                         }
                     }
                 } else logout();
@@ -699,19 +707,33 @@
         }
     }
 
-    function updateLastSeen() { 
-        if (me && isDbReady) { 
-            me.lastSeen = Date.now(); 
-            const uIdx = db.users.findIndex(u => u.id === me.id);
-            if (uIdx > -1) rtdb.ref(`/dg_app_data/users/${uIdx}/lastSeen`).set(me.lastSeen).catch(()=>{});
-        } 
+    // ИСПРАВЛЕНИЕ: МГНОВЕННЫЙ СТАТУС ОНЛАЙН (FIREBASE PRESENCE)
+    let presenceRef = null;
+    let connectedRef = null;
+    
+    function setupPresence() {
+        if (!me) return;
+        const uIdx = db.users.findIndex(u => u.id === me.id);
+        if (uIdx === -1) return;
+        
+        presenceRef = rtdb.ref(`/dg_app_data/users/${uIdx}/lastSeen`);
+        if (connectedRef) connectedRef.off(); 
+        
+        connectedRef = rtdb.ref('.info/connected');
+        connectedRef.on('value', snap => {
+            if (snap.val() === true) {
+                // Как только пропадет интернет или закроется вкладка — Firebase сам запишет точное время
+                presenceRef.onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
+                presenceRef.set('online');
+            }
+        });
     }
-    setInterval(updateLastSeen, 60000);
 
     function getUserStatus(user) {
+        if (user.lastSeen === 'online') return "в сети";
         if (!user.lastSeen) return "недавно";
         const diff = Date.now() - user.lastSeen;
-        if (diff < 120000) return "в сети";
+        if (diff < 120000) return "в сети"; 
         const minutes = Math.floor(diff / 60000);
         if (minutes < 60) return `был(а) ${minutes} мин назад`;
         const hours = Math.floor(minutes / 60);
@@ -809,25 +831,16 @@
         document.getElementById('callStatusSmall').textContent = text;
     }
 
-    // Отрисовка кнопок управления звонком в зависимости от типа (Аудио или Видео)
     function renderCallControls() {
         const controls = document.getElementById('callControls');
         const overlay = document.getElementById('callOverlay');
         
         if (!currentCallIsVideo) {
-            // Аудио звонок
             overlay.className = 'modal audio-call active';
-            document.getElementById('callCenterArea').style.display = 'flex';
-            document.getElementById('callTopCenter').style.display = 'none';
-            
             controls.innerHTML = `
                 <div class="call-btn-group">
                     <button class="call-btn-circle ${isSpeakerOn ? 'white' : 'translucent'}" onclick="toggleCallSpeaker()">🔊</button>
                     <div class="call-btn-label">Динамик</div>
-                </div>
-                <div class="call-btn-group">
-                    <button class="call-btn-circle white" onclick="toggleCallCam(true)">📹</button>
-                    <div class="call-btn-label">Вкл. видео</div>
                 </div>
                 <div class="call-btn-group">
                     <button class="call-btn-circle ${isCallMicMuted ? 'white' : 'translucent'}" onclick="toggleCallMic()">🎤</button>
@@ -839,11 +852,7 @@
                 </div>
             `;
         } else {
-            // Видео звонок
             overlay.className = 'modal video-call active';
-            document.getElementById('callCenterArea').style.display = 'none';
-            document.getElementById('callTopCenter').style.display = 'block';
-
             controls.innerHTML = `
                 <div class="call-btn-group">
                     <button class="call-btn-circle white" onclick="flipCamera()">🔄</button>
@@ -887,21 +896,19 @@
         currentCallIsVideo = isVideoCall;
         const caller = db.users.find(u => u.id === callerId);
         
-        // Установка имени и аватара в оба варианта UI
         document.getElementById('callAvatar').innerHTML = getAvatarHtml(caller.avatarType, caller.avatarValue);
         document.getElementById('callName').textContent = caller.name;
         document.getElementById('callNameSmall').textContent = caller.name;
         
         setCallStatusText('Входящий вызов...');
-        
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
         
-        // Рендер кнопок прием/отбой
         const overlay = document.getElementById('callOverlay');
         overlay.className = currentCallIsVideo ? 'modal video-call active' : 'modal audio-call active';
         
-        document.getElementById('callCenterArea').style.display = currentCallIsVideo ? 'none' : 'flex';
-        document.getElementById('callTopCenter').style.display = currentCallIsVideo ? 'block' : 'none';
+        // Во время звонка всегда показываем центральный аватар, пока не поднимется трубка
+        document.getElementById('callCenterArea').style.display = 'flex';
+        document.getElementById('callTopCenter').style.display = 'none';
 
         document.getElementById('callControls').innerHTML = `
             <div class="call-btn-group">
@@ -919,10 +926,7 @@
         inRing.play().catch(e => console.warn('Автовоспроизведение заблокировано', e));
     }
 
-    function minimizeCall() {
-        // Заглушка: в будущем здесь логика скрытия оверлея без сброса звонка
-        alert('Звонок свернут (в разработке)');
-    }
+    function minimizeCall() { alert('Звонок свернут (в разработке)'); }
 
     function hideCallUI() {
         document.getElementById('callOverlay').classList.remove('active');
@@ -930,6 +934,10 @@
         document.getElementById('remoteVideo').classList.remove('active-video');
         document.getElementById('remoteVideo').srcObject = null;
         document.getElementById('remoteAudio').srcObject = null;
+        
+        document.getElementById('callTopCenter').style.display = 'none';
+        document.getElementById('callCenterArea').style.display = 'flex';
+        
         inRing.pause(); inRing.currentTime = 0;
         outRing.pause(); outRing.currentTime = 0;
     }
@@ -960,17 +968,20 @@
         setCallStatusText('Запрос . .');
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
         
+        // Стартуем с центрального аватара
+        document.getElementById('callCenterArea').style.display = 'flex';
+        document.getElementById('callTopCenter').style.display = 'none';
+        
         renderCallControls();
         outRing.play().catch(e => console.warn('Автовоспроизведение заблокировано', e));
 
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo ? { facingMode: currentFacingMode } : true });
+            // ИСПРАВЛЕНИЕ: Камера запрашивается ТОЛЬКО если это видеозвонок
+            localStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: true, 
+                video: isVideo ? { facingMode: currentFacingMode } : false 
+            });
             
-            if (!isVideo) {
-                // Если аудио-звонок, отключаем видеопоток, но держим его готовым
-                localStream.getVideoTracks().forEach(t => t.enabled = false);
-            }
-
             if (isVideo) {
                 const localVid = document.getElementById('localVideo');
                 localVid.srcObject = localStream;
@@ -980,21 +991,27 @@
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
             
+            // ИСПРАВЛЕНИЕ: Полное разделение Аудио и Видео
             peerConnection.ontrack = event => { 
                 const rVid = document.getElementById('remoteVideo');
+                const rAud = document.getElementById('remoteAudio');
                 const stream = event.streams[0] || new MediaStream([event.track]);
                 
-                if (rVid.srcObject !== stream) rVid.srcObject = stream;
-                
-                const checkVideo = () => {
-                    if (stream.getVideoTracks().length > 0 && currentCallIsVideo) {
-                        rVid.classList.add('active-video');
-                    }
-                };
-                stream.addEventListener('addtrack', checkVideo);
-                checkVideo();
-                
-                rVid.play().catch(e => console.warn('Playback prevented', e));
+                if (event.track.kind === 'video') {
+                    if (rVid.srcObject !== stream) rVid.srcObject = stream;
+                    
+                    // Показываем видео собеседника ТОЛЬКО когда готовы первые кадры
+                    rVid.onloadedmetadata = () => {
+                        if (currentCallIsVideo) {
+                            rVid.classList.add('active-video');
+                            document.getElementById('callTopCenter').style.display = 'block';
+                            document.getElementById('callCenterArea').style.display = 'none';
+                        }
+                    };
+                } else if (event.track.kind === 'audio') {
+                    if (rAud.srcObject !== stream) rAud.srcObject = stream;
+                    rAud.play().catch(e => console.warn('Playback prevented', e));
+                }
             };
 
             peerConnection.onicecandidate = event => {
@@ -1043,10 +1060,11 @@
         renderCallControls();
 
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo ? { facingMode: currentFacingMode } : true });
+            localStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: true, 
+                video: isVideo ? { facingMode: currentFacingMode } : false 
+            });
             
-            if (!isVideo) localStream.getVideoTracks().forEach(t => t.enabled = false);
-
             if (isVideo) {
                 const localVid = document.getElementById('localVideo');
                 localVid.srcObject = localStream;
@@ -1058,19 +1076,23 @@
             
             peerConnection.ontrack = event => { 
                 const rVid = document.getElementById('remoteVideo');
+                const rAud = document.getElementById('remoteAudio');
                 const stream = event.streams[0] || new MediaStream([event.track]);
                 
-                if (rVid.srcObject !== stream) rVid.srcObject = stream;
-                
-                const checkVideo = () => {
-                    if (stream.getVideoTracks().length > 0 && currentCallIsVideo) {
-                        rVid.classList.add('active-video');
-                    }
-                };
-                stream.addEventListener('addtrack', checkVideo);
-                checkVideo();
-                
-                rVid.play().catch(e => console.warn('Playback prevented', e));
+                if (event.track.kind === 'video') {
+                    if (rVid.srcObject !== stream) rVid.srcObject = stream;
+                    
+                    rVid.onloadedmetadata = () => {
+                        if (currentCallIsVideo) {
+                            rVid.classList.add('active-video');
+                            document.getElementById('callTopCenter').style.display = 'block';
+                            document.getElementById('callCenterArea').style.display = 'none';
+                        }
+                    };
+                } else if (event.track.kind === 'audio') {
+                    if (rAud.srcObject !== stream) rAud.srcObject = stream;
+                    rAud.play().catch(e => console.warn('Playback prevented', e));
+                }
             };
 
             peerConnection.onicecandidate = event => {
@@ -1131,24 +1153,21 @@
         if (localStream) {
             isCallMicMuted = !isCallMicMuted;
             localStream.getAudioTracks().forEach(t => t.enabled = !isCallMicMuted);
-            renderCallControls(); // Обновляем дизайн кнопок
+            renderCallControls();
         }
     }
     
     function toggleCallCam(forceVideo = false) {
         if (localStream) {
             if (forceVideo && !currentCallIsVideo) {
-                currentCallIsVideo = true;
-                isCallCamOff = false;
-                localStream.getVideoTracks().forEach(t => t.enabled = true);
-                document.getElementById('localVideo').style.display = 'block';
-                document.getElementById('remoteVideo').classList.add('active-video');
+                // Если захотим включить видео в аудио-звонке (требует логики renegotiation)
+                alert("Включение видео в процессе аудиозвонка в разработке.");
             } else {
                 isCallCamOff = !isCallCamOff;
                 localStream.getVideoTracks().forEach(t => t.enabled = !isCallCamOff);
                 document.getElementById('localVideo').style.opacity = isCallCamOff ? '0' : '1';
+                renderCallControls();
             }
-            renderCallControls();
         }
     }
     
@@ -1176,10 +1195,11 @@
     function toggleCallSpeaker() {
         isSpeakerOn = !isSpeakerOn;
         renderCallControls();
-        const rVideo = document.getElementById('remoteVideo');
-        if (typeof rVideo.setSinkId === 'function') {
+        // Пытаемся переключить звук, если браузер поддерживает setSinkId
+        const rAud = document.getElementById('remoteAudio');
+        if (typeof rAud.setSinkId === 'function') {
             const targetSink = isSpeakerOn ? 'default' : ''; 
-            rVideo.setSinkId(targetSink).catch(e => console.log(e));
+            rAud.setSinkId(targetSink).catch(e => console.log(e));
         }
     }
 
@@ -1250,7 +1270,6 @@
     
     function proceedWithLogin(user) {
         me = user;
-        me.lastSeen = Date.now();
         localStorage.setItem('Nexagram_Session_UID', me.id);
         
         document.getElementById('auth').style.display = 'none';
@@ -1261,12 +1280,19 @@
         
         applyTheme(localSettings.theme || 'green');
         updUI(); renderFriends(); renderChats(); renderStories();
+        setupPresence(); 
         listenForIncomingCalls(); 
         document.getElementById('passwordInput').value = '';
     }
 
     function logout() {
         if (confirm('Выйти из аккаунта?')) {
+            if (presenceRef) {
+                presenceRef.onDisconnect().cancel();
+                presenceRef.set(Date.now());
+            }
+            if (connectedRef) connectedRef.off();
+
             localStorage.removeItem('Nexagram_Session_UID');
             me = null; activeChat = null;
             document.getElementById('app').style.display = 'none';
@@ -1827,7 +1853,6 @@
             inp.value = '';
             markChatAsReadLocally();
             renderMsgs();
-            updateLastSeen();
         }
     }
 
@@ -1853,7 +1878,6 @@
                 db.chats[chatIndex].msgs.push(msgObj);
                 rtdb.ref(`/dg_app_data/chats/${chatIndex}/msgs`).set(db.chats[chatIndex].msgs);
                 if (activeChat.id === db.chats[chatIndex].id) renderMsgs(); 
-                updateLastSeen();
             }
         }
     }
