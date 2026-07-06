@@ -131,6 +131,7 @@
         .back-btn { background: none; border: none; color: var(--p); font-size: 28px; cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-right: 4px; flex-shrink: 0;}
         
         #auth, #loader { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+        #auth { display: none; } /* Скрыт по умолчанию для мгновенного входа */
         #loader { z-index: 3000; background: rgba(0,0,0,0.8); flex-direction: column; gap: 16px; display: none; }
         .spinner { width: 40px; height: 40px; border: 4px solid var(--in); border-top: 4px solid var(--p); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -544,12 +545,19 @@
     <div class="call-actions-row" id="callControls"></div>
 </div>
 
-<audio id="remoteAudio" autoplay playsinline></audio>
-
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
+    // МГНОВЕННЫЙ ВХОД (Без загрузчика)
+    const savedSessionInstant = localStorage.getItem('Nexagram_Session_UID');
+    if (savedSessionInstant) {
+        document.getElementById('auth').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+    } else {
+        document.getElementById('auth').style.display = 'flex';
+    }
+
     let currentStoryUser = null;
     let currentStoryIdx = 0;
     let storyTimerId = null;
@@ -634,8 +642,6 @@
         if (!user) return false;
         return ['helper', 'demo', 'admin'].includes(user.login.toLowerCase()) || user.isGlobalAdmin;
     }
-
-    document.getElementById('loader').style.display = 'flex';
     
     rtdb.ref('/dg_app_data').on('value', (snapshot) => {
         try {
@@ -684,7 +690,6 @@
             
             if (!isInitialLoadDone) isInitialLoadDone = true;
             isDbReady = true;
-            document.getElementById('loader').style.display = 'none';
 
             if (me) {
                 const updatedMe = db.users.find(u => u.id === me.id);
@@ -718,15 +723,17 @@
                 if (savedSession) {
                     const user = db.users.find(u => u.id === savedSession);
                     if (user && !user.isBanned) proceedWithLogin(user);
-                    else localStorage.removeItem('Nexagram_Session_UID');
+                    else {
+                        localStorage.removeItem('Nexagram_Session_UID');
+                        document.getElementById('app').style.display = 'none';
+                        document.getElementById('auth').style.display = 'flex';
+                    }
                 }
             }
         } catch (err) {
-            document.getElementById('loader').style.display = 'none';
             console.error(err);
         }
     }, (error) => {
-        document.getElementById('loader').style.display = 'none';
         alert("Ошибка подключения к серверу: " + error.message);
     });
 
@@ -736,8 +743,11 @@
             return;
         }
         Notification.requestPermission().then(permission => {
-            if (permission === "granted") alert("Уведомления успешно включены!");
-            else alert("Уведомления отклонены или заблокированы в настройках браузера.");
+            if (permission === "granted") {
+                new Notification("Nexagram", { body: "Уведомления успешно включены!" });
+            } else {
+                alert("Уведомления отклонены. Разрешите их в настройках вашего браузера/телефона.");
+            }
         });
     }
 
@@ -893,7 +903,6 @@
     function renderCallControls() {
         const controls = document.getElementById('callControls');
         
-        // Синхронизируем кнопку микрофона на свернутой панели
         const minMicBtn = document.getElementById('minCallMicBtn');
         if (minMicBtn) {
             minMicBtn.textContent = isCallMicMuted ? '🔇' : '🎤';
@@ -1004,7 +1013,7 @@
     }
 
     function expandCall() {
-        document.getElementById('callOverlay').style.display = ''; // Возвращает контроль классу .active
+        document.getElementById('callOverlay').style.display = ''; 
         document.getElementById('minimizedCallBar').style.display = 'none';
     }
 
@@ -1112,23 +1121,21 @@
             
             peerConnection.ontrack = event => { 
                 const rVid = document.getElementById('remoteVideo');
-                const rAud = document.getElementById('remoteAudio');
-                const stream = event.streams[0] || new MediaStream([event.track]);
                 
-                if (event.track.kind === 'video') {
-                    if (rVid.srcObject !== stream) rVid.srcObject = stream;
-                    
-                    rVid.onloadedmetadata = () => {
-                        if (currentCallIsVideo) {
-                            rVid.classList.add('active-video');
-                            document.getElementById('callTopCenter').style.display = 'block';
-                            document.getElementById('callCenterArea').style.display = 'none';
-                        }
-                    };
-                } else if (event.track.kind === 'audio') {
-                    if (rAud.srcObject !== stream) rAud.srcObject = stream;
-                    rAud.play().catch(e => console.warn('Playback prevented', e));
+                if (!rVid.srcObject) {
+                    rVid.srcObject = event.streams[0] || new MediaStream([event.track]);
+                } else if (event.streams[0]) {
+                    rVid.srcObject = event.streams[0];
                 }
+                
+                rVid.onloadedmetadata = () => {
+                    rVid.play().catch(e => console.warn('Play error', e));
+                    if (currentCallIsVideo && rVid.srcObject.getVideoTracks().length > 0) {
+                        rVid.classList.add('active-video');
+                        document.getElementById('callTopCenter').style.display = 'block';
+                        document.getElementById('callCenterArea').style.display = 'none';
+                    }
+                };
             };
 
             peerConnection.onicecandidate = event => {
@@ -1197,23 +1204,21 @@
             
             peerConnection.ontrack = event => { 
                 const rVid = document.getElementById('remoteVideo');
-                const rAud = document.getElementById('remoteAudio');
-                const stream = event.streams[0] || new MediaStream([event.track]);
                 
-                if (event.track.kind === 'video') {
-                    if (rVid.srcObject !== stream) rVid.srcObject = stream;
-                    
-                    rVid.onloadedmetadata = () => {
-                        if (currentCallIsVideo) {
-                            rVid.classList.add('active-video');
-                            document.getElementById('callTopCenter').style.display = 'block';
-                            document.getElementById('callCenterArea').style.display = 'none';
-                        }
-                    };
-                } else if (event.track.kind === 'audio') {
-                    if (rAud.srcObject !== stream) rAud.srcObject = stream;
-                    rAud.play().catch(e => console.warn('Playback prevented', e));
+                if (!rVid.srcObject) {
+                    rVid.srcObject = event.streams[0] || new MediaStream([event.track]);
+                } else if (event.streams[0]) {
+                    rVid.srcObject = event.streams[0];
                 }
+                
+                rVid.onloadedmetadata = () => {
+                    rVid.play().catch(e => console.warn('Play error', e));
+                    if (currentCallIsVideo && rVid.srcObject.getVideoTracks().length > 0) {
+                        rVid.classList.add('active-video');
+                        document.getElementById('callTopCenter').style.display = 'block';
+                        document.getElementById('callCenterArea').style.display = 'none';
+                    }
+                };
             };
 
             peerConnection.onicecandidate = event => {
@@ -1328,10 +1333,10 @@
     function toggleCallSpeaker() {
         isSpeakerOn = !isSpeakerOn;
         renderCallControls();
-        const rAud = document.getElementById('remoteAudio');
-        if (typeof rAud.setSinkId === 'function') {
+        const rVid = document.getElementById('remoteVideo');
+        if (typeof rVid.setSinkId === 'function') {
             const targetSink = isSpeakerOn ? 'default' : ''; 
-            rAud.setSinkId(targetSink).catch(e => console.log(e));
+            rVid.setSinkId(targetSink).catch(e => console.log(e));
         }
     }
 
@@ -1378,13 +1383,13 @@
     }
 
     function login() {
-        if (!isDbReady) return alert('Подождите, идет подключение к серверу...');
-        ensureHelper();
-        
-        // Принудительно запрашиваем пуш-уведомления именно в момент клика на кнопку Входа
+        // Принудительный запрос уведомлений по клику пользователя
         if ("Notification" in window && Notification.permission === "default") {
             Notification.requestPermission();
         }
+
+        if (!isDbReady) return alert('Подождите, идет подключение к серверу...');
+        ensureHelper();
         
         const loginVal = document.getElementById('loginInput').value.trim();
         const passwordVal = document.getElementById('passwordInput').value;
@@ -1413,7 +1418,7 @@
     function proceedWithLogin(user) {
         me = user;
         localStorage.setItem('Nexagram_Session_UID', me.id);
-        
+
         document.getElementById('auth').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
 
