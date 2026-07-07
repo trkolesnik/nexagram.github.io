@@ -142,7 +142,6 @@
 
         .auth-container { width: 100%; max-width: 340px; text-align: center; animation: fadeIn 0.5s ease; }
         
-        /* НОВЫЙ ЛОГОТИП (СЕРЕБРИСТЫЙ ГРАДИЕНТ) */
         .brand-square { 
             display: inline-block; 
             font-size: 42px; 
@@ -303,7 +302,6 @@
 </head>
 <body>
 
-<!-- АВТОГЕНЕРАЦИЯ PWA MANIFEST -->
 <script>
     const pwaManifest = {
         "name": "Nexagram",
@@ -321,14 +319,12 @@
 <audio id="incomingRingtone" loop src="https://upload.wikimedia.org/wikipedia/commons/c/c4/Telephone_ringing.ogg"></audio>
 <audio id="outgoingRingtone" loop src="https://upload.wikimedia.org/wikipedia/commons/f/fc/Ringback_tone_%28North_America%29.ogg"></audio>
 
-<!-- СВЕРНУТЫЙ ЗВОНОК -->
 <div id="minimizedCallBar" onclick="expandCall()">
     <button class="icon-btn-min mic-btn" id="minCallMicBtn" onclick="event.stopPropagation(); toggleCallMic();">🎤</button>
     <div class="min-call-info" id="minCallInfo">Имя · 00:00</div>
     <button class="icon-btn-min end-btn" onclick="event.stopPropagation(); endCall();">📞</button>
 </div>
 
-<!-- ЗАГРУЗОЧНЫЙ ЭКРАН СИНХРОНИЗАЦИИ -->
 <div id="loader">
     <div class="spinner"></div>
     <div style="color: white; font-weight: 600;">Синхронизация...</div>
@@ -504,7 +500,6 @@
 <div id="profileModal" class="modal"><div class="modal-content profile-view" id="profileModalContent"></div></div>
 <div id="accountsModal" class="modal"><div class="modal-content"><h3>Сменить аккаунт</h3><div id="accountsList" class="accounts-list"></div><button class="auth-btn" style="margin-top: 24px; background: var(--in); color: var(--txt);" onclick="closeAccountsModal()">Отмена</button></div></div>
 
-<!-- ОБНОВЛЕННОЕ ОКНО ВОССТАНОВЛЕНИЯ ПАРОЛЯ -->
 <div id="forgotModal" class="modal">
     <div class="modal-content">
         <h3>Восстановление</h3>
@@ -595,7 +590,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
-    // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ШИФРОВАНИЯ ДЛЯ ПОДДЕРЖКИ РУССКОГО ЯЗЫКА
     function hashString(str) {
         return btoa(unescape(encodeURIComponent(str)));
     }
@@ -608,19 +602,18 @@
     const CLOUDINARY_UPLOAD_PRESET = 'ml_default'; 
 
     const firebaseConfig = {
-      apiKey: "AIzaSyAnJbjdLnCBbsTX9F8RFaUcM6Ux10icSws",
-      authDomain: "planning-with-ai-51656.firebaseapp.com",
-      databaseURL: "https://planning-with-ai-51656-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "planning-with-ai-51656",
-      storageBucket: "planning-with-ai-51656.firebasestorage.app",
-      messagingSenderId: "563652920629",
-      appId: "1:563652920629:web:1f22002d27b36c320c787c"
+      apiKey: "AIzaSyC0wruK-Dy-hsAu6lRYMzO-KlpXJrt3ioo",
+      authDomain: "nexagrammessanger.firebaseapp.com",
+      databaseURL: "https://nexagrammessanger-default-rtdb.firebaseio.com",
+      projectId: "nexagrammessanger",
+      storageBucket: "nexagrammessanger.firebasestorage.app",
+      messagingSenderId: "208335236412",
+      appId: "1:208335236412:web:2828a6134af91dfa260239",
+      measurementId: "G-RGR25Y1HJ9"
     };
 
     firebase.initializeApp(firebaseConfig);
     const rtdb = firebase.database();
-    
-    // ИНИЦИАЛИЗАЦИЯ GOOGLE AUTH
     const googleProvider = new firebase.auth.GoogleAuthProvider();
     
     const inRing = document.getElementById('incomingRingtone');
@@ -664,7 +657,6 @@
 
     const builtInAvatars = ['😀', '😎', '🦊', '🐱', '🐶', '🦁', '🐼', '🐨', '⭐', '🔥', '🌈', '🎨', '🚀', '💎', '🎮', '🎵', '💪', '🧠', '❤️', '💙', '💚', '💛', '💜', '🖤'];
 
-    // WebRTC Variables
     let peerConnection = null;
     let localStream = null;
     let currentCallId = null;
@@ -1444,7 +1436,6 @@
         document.getElementById('forgotBtn').style.display = isRegisterMode ? 'none' : 'block';
     }
 
-    // ВХОД И РЕГИСТРАЦИЯ ЧЕРЕЗ GOOGLE
     async function loginWithGoogle() {
         if (!isDbReady) return alert('Подождите, идет подключение к серверу...');
         ensureHelper();
@@ -1500,7 +1491,6 @@
         }
     }
 
-    // УНИВЕРСАЛЬНАЯ АВТОРИЗАЦИЯ (LOGIN ИЛИ EMAIL)
     async function login() {
         if ("Notification" in window && Notification.permission === "default") {
             Notification.requestPermission();
@@ -2828,4 +2818,4 @@
     function resetAllData() { if (confirm("Внимание! Это очистит только твои локальные настройки. База останется на сервере.")) { localStorage.removeItem('Nexagram_Settings'); localStorage.removeItem('Nexagram_Session_UID'); localStorage.removeItem('Nexagram_Drafts'); location.reload(); } }
 </script>
 </body>
-    </html>
+                                                                </html>
