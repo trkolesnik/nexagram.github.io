@@ -142,6 +142,7 @@
 
         .auth-container { width: 100%; max-width: 340px; text-align: center; animation: fadeIn 0.5s ease; }
         
+        /* НОВЫЙ ЛОГОТИП (СЕРЕБРИСТЫЙ ГРАДИЕНТ) */
         .brand-square { 
             display: inline-block; 
             font-size: 42px; 
@@ -411,6 +412,7 @@
 
             <div class="section-header">Безопасность</div>
             <div class="sett-box">
+                <div class="sett-row" onclick="linkEmail()">📧 Привязать Email</div>
                 <div class="sett-row" onclick="changePassword()">🔒 Сменить пароль</div>
                 <div class="sett-row" onclick="changeSecretWord()">🔑 Сменить секретное слово</div>
             </div>
@@ -593,6 +595,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
+    // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ШИФРОВАНИЯ ДЛЯ ПОДДЕРЖКИ РУССКОГО ЯЗЫКА
     function hashString(str) {
         return btoa(unescape(encodeURIComponent(str)));
     }
@@ -616,6 +619,8 @@
 
     firebase.initializeApp(firebaseConfig);
     const rtdb = firebase.database();
+    
+    // ИНИЦИАЛИЗАЦИЯ GOOGLE AUTH
     const googleProvider = new firebase.auth.GoogleAuthProvider();
     
     const inRing = document.getElementById('incomingRingtone');
@@ -659,6 +664,7 @@
 
     const builtInAvatars = ['😀', '😎', '🦊', '🐱', '🐶', '🦁', '🐼', '🐨', '⭐', '🔥', '🌈', '🎨', '🚀', '💎', '🎮', '🎵', '💪', '🧠', '❤️', '💙', '💚', '💛', '💜', '🖤'];
 
+    // WebRTC Variables
     let peerConnection = null;
     let localStream = null;
     let currentCallId = null;
@@ -1438,6 +1444,7 @@
         document.getElementById('forgotBtn').style.display = isRegisterMode ? 'none' : 'block';
     }
 
+    // ВХОД И РЕГИСТРАЦИЯ ЧЕРЕЗ GOOGLE
     async function loginWithGoogle() {
         if (!isDbReady) return alert('Подождите, идет подключение к серверу...');
         ensureHelper();
@@ -1447,10 +1454,11 @@
         }
 
         try {
+            document.getElementById('loader').style.display = 'flex';
             const result = await firebase.auth().signInWithPopup(googleProvider);
             const gUser = result.user;
 
-            let user = db.users.find(u => u.googleUid === gUser.uid || u.login === gUser.email.toLowerCase());
+            let user = db.users.find(u => u.googleUid === gUser.uid || u.email === gUser.email.toLowerCase());
 
             if (!user) {
                 const baseLogin = gUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1464,6 +1472,7 @@
                 user = {
                     id: 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
                     login: finalLogin,
+                    email: gUser.email.toLowerCase(),
                     name: gUser.displayName || finalLogin,
                     avatarType: 'url',
                     avatarValue: gUser.photoURL || '',
@@ -1473,14 +1482,17 @@
                     secretWord: hashString('google_auth'),
                     lastSeen: Date.now(),
                     isBanned: false,
-                    googleUid: gUser.uid
+                    googleUid: gUser.uid,
+                    firebaseUid: gUser.uid 
                 };
                 db.users.push(user);
                 await rtdb.ref('/dg_app_data/users').set(db.users);
             }
-
+            
+            document.getElementById('loader').style.display = 'none';
             proceedWithLogin(user);
         } catch (error) {
+            document.getElementById('loader').style.display = 'none';
             console.error(error);
             if (error.code !== 'auth/popup-closed-by-user') {
                 alert('Ошибка Google авторизации: ' + error.message);
@@ -1488,6 +1500,7 @@
         }
     }
 
+    // УНИВЕРСАЛЬНАЯ АВТОРИЗАЦИЯ (LOGIN ИЛИ EMAIL)
     async function login() {
         if ("Notification" in window && Notification.permission === "default") {
             Notification.requestPermission();
@@ -1510,17 +1523,27 @@
             if (!isEmail && db.users.find(u => u.login === loginLower)) return alert('Логин занят');
             
             if (isEmail) {
+                let customLogin = prompt("Для удобного поиска добавьте логин (без @):");
+                if (!customLogin || customLogin.trim().length < 3 || customLogin.includes('@')) {
+                    return alert('Некорректный логин. Минимум 3 символа, без @.');
+                }
+                customLogin = customLogin.trim().toLowerCase();
+                if (db.users.find(u => u.login === customLogin)) {
+                    return alert('Этот логин уже занят другим пользователем.');
+                }
+
                 try {
                     document.getElementById('loader').style.display = 'flex';
                     const userCred = await firebase.auth().createUserWithEmailAndPassword(loginLower, passwordVal);
                     const fUser = userCred.user;
                     
-                    let user = db.users.find(u => u.login === loginLower);
+                    let user = db.users.find(u => u.email === loginLower);
                     if (!user) {
                         user = { 
                             id: 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), 
-                            login: loginLower, 
-                            name: loginLower.split('@')[0], 
+                            login: customLogin, 
+                            email: loginLower, 
+                            name: customLogin, 
                             avatarType: 'emoji', 
                             avatarValue: builtInAvatars[Math.floor(Math.random() * builtInAvatars.length)], 
                             friends: [], 
@@ -1551,7 +1574,7 @@
                 try {
                     document.getElementById('loader').style.display = 'flex';
                     const userCred = await firebase.auth().signInWithEmailAndPassword(loginLower, passwordVal);
-                    let user = db.users.find(u => u.login === loginLower || u.firebaseUid === userCred.user.uid);
+                    let user = db.users.find(u => u.email === loginLower || u.firebaseUid === userCred.user.uid);
                     if (!user) {
                         document.getElementById('loader').style.display = 'none';
                         return alert('Пользователь не найден в базе');
@@ -2662,12 +2685,42 @@
         container.innerHTML = friendUsers.map(u => ` <div class="list-item" onclick="startChat('${u.id}')"> <div class="av-sm">${getAvatarHtml(u.avatarType, u.avatarValue)}</div> <div class="list-info"> <div class="list-name">${escapeHtml(u.name)}</div> <div class="list-preview">${getUserStatus(u)}</div> </div> </div> `).join(''); 
     }
 
+    async function linkEmail() {
+        if (!me) return;
+        if (me.firebaseUid || me.googleUid || me.email) {
+            return alert("К этому аккаунту уже привязана почта или Google.");
+        }
+        const email = prompt("Введите ваш Email для привязки:");
+        if (!email || !email.includes('@')) return alert("Некорректный Email");
+        
+        const pass = prompt("Придумайте пароль для входа по Email (минимум 6 символов):");
+        if (!pass || pass.length < 6) return alert("Пароль слишком короткий");
+
+        try {
+            document.getElementById('loader').style.display = 'flex';
+            const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+            
+            me.firebaseUid = cred.user.uid;
+            me.email = email.toLowerCase();
+            const uIdx = db.users.findIndex(u => u.id === me.id);
+            if (uIdx > -1) {
+                await rtdb.ref(`/dg_app_data/users/${uIdx}/firebaseUid`).set(me.firebaseUid);
+                await rtdb.ref(`/dg_app_data/users/${uIdx}/email`).set(me.email);
+            }
+            document.getElementById('loader').style.display = 'none';
+            alert("Почта успешно привязана! Теперь вы можете входить по ней.");
+        } catch (error) {
+            document.getElementById('loader').style.display = 'none';
+            alert("Ошибка привязки: " + error.message);
+        }
+    }
+
     async function resetFirebasePassword() {
         const email = document.getElementById('forgotLogin').value.trim().toLowerCase();
         if (!email || !email.includes('@')) return alert('Введите корректный Email в первое поле');
         try {
             await firebase.auth().sendPasswordResetEmail(email);
-            alert('Письмо для сброса пароля отправлено на ' + email);
+            alert('Письмо для сброса пароля отправлено на ' + email + '.\nОбязательно проверьте папку "Спам" или "Рассылки"!');
             closeForgotModal();
         } catch (error) {
             alert('Ошибка: ' + error.message);
