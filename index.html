@@ -564,7 +564,7 @@
     <div class="call-top-bar">
         <button class="icon-btn" style="color: white; font-size: 28px; width:40px;" onclick="minimizeCall()">↙</button>
         <div class="call-top-center" id="callTopCenter">
-            <div id="callNameSmall" style="font-weight: 600; font-size: 18px;">Евгений</div>
+            <div id="callNameSmall" style="font-weight: 600; font-size: 18px;">Имя</div>
             <div id="callStatusSmall" style="font-size: 14px; opacity: 0.8; margin-top:2px;">Ожидание...</div>
         </div>
         <div style="width:40px;"></div> 
@@ -576,7 +576,7 @@
             <div class="call-avatar-ring-1"></div>
             <div class="call-avatar-img" id="callAvatar"></div>
         </div>
-        <div id="callName" style="font-size: 32px; font-weight: 600; margin-bottom: 8px;">Евгений</div>
+        <div id="callName" style="font-size: 32px; font-weight: 600; margin-bottom: 8px;">Имя</div>
         <div id="callStatus" style="font-size: 16px; opacity: 0.8;">Запрос . .</div>
     </div>
 
@@ -604,12 +604,12 @@
     const firebaseConfig = {
       apiKey: "AIzaSyC0wruK-Dy-hsAu6lRYMzO-KlpXJrt3ioo",
       authDomain: "nexagrammessanger.firebaseapp.com",
-      databaseURL: "https://nexagrammessanger-default-rtdb.firebaseio.com",
+      databaseURL: "https://nexagrammessanger-default-rtdb.europe-west1.firebasedatabase.app",
       projectId: "nexagrammessanger",
       storageBucket: "nexagrammessanger.firebasestorage.app",
       messagingSenderId: "208335236412",
-      appId: "1:208335236412:web:2828a6134af91dfa260239",
-      measurementId: "G-RGR25Y1HJ9"
+      appId: "1:208335236412:web:e7ce71ccdb2afacf260239",
+      measurementId: "G-56405NSVC8"
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -2818,4 +2818,4 @@
     function resetAllData() { if (confirm("Внимание! Это очистит только твои локальные настройки. База останется на сервере.")) { localStorage.removeItem('Nexagram_Settings'); localStorage.removeItem('Nexagram_Session_UID'); localStorage.removeItem('Nexagram_Drafts'); location.reload(); } }
 </script>
 </body>
-                                                                </html>
+</html>
